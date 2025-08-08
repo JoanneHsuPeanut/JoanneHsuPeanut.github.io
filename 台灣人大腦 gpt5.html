@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>台灣人大腦</title>
+  <!-- React via CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    :root { --gap:12px; --pad:12px; --radius:10px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans TC", Arial, sans-serif; }
+    header { padding: var(--pad); background:#fff; color:#2d6cdf; text-align:center;}
+    main { padding: var(--pad); max-width: 800px; margin: 0 auto; }
+    form { display: grid; gap: var(--gap); background:#f7f7f9; padding: var(--pad); border-radius: var(--radius); }
+    .row { display: flex; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--gap); }
+    label { font-size: 14px; color:#333; display:flex; flex-direction:column; gap:6px; }
+    input { padding:10px; border:1px solid #ccc; border-radius:8px; font-size:16px; width:100%; }
+    .hint { font-size:12px; color:#666; }
+    .btns { display:flex; flex-wrap:wrap; gap:8px; }
+    button, .ghost {
+      padding:10px 14px; border-radius:8px; border:none; font-size:15px; cursor:pointer;
+    }
+    button.primary { background:#2d6cdf; color:#fff; }
+    button.secondary { background:#eaeef8; color:#1c2a46; }
+    button.danger { background:#e45757; color:#fff; }
+    .ghost { background:transparent; border:1px solid #ccc; }
+    .list { margin-top:16px; display:flex; flex-direction:column; gap:10px; }
+    .card {
+      border:1px solid #e5e7eb; border-radius:10px; padding:10px;
+      display:flex; justify-content:space-between; align-items:center; gap:10px; background:#fff;
+    }
+    .card .meta { font-size:14px; color:#111; }
+    .card .meta div { margin:2px 0; }
+    .totals {
+      margin-top: 12px; padding: 12px; background:#f1f5ff; border:1px solid #dbe3ff; border-radius:10px;
+      display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between;
+    }
+    .totals .saved { color:#0a7a28; font-weight:600; }
+    .error { color:#b42318; font-size:14px; }
+    @media (max-width: 640px) {
+      .row, .row3 { grid-template-columns: 1fr; }
+      header { text-align:center; }
+      .totals { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header><h1>划嗎？我可以去結帳了嗎？</h1></header>
+  <main>
+    <div id="app"></div>
+  </main>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    function isNum(v) {
+      if (v === "" || v === null || v === undefined) return false;
+      return !isNaN(Number(v));
+    }
+
+    function toCurrency(n) {
+      if (n === "" || n === null || n === undefined || isNaN(Number(n))) return "";
+      const val = Number(n);
+      return new Intl.NumberFormat("zh-Hant", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+    }
+
+    function computeSpecial(unitPrice, discount) {
+      // 折數<10 => 單價 * 折數 / 10；否則 單價 * 折數 / 100
+      if (!isNum(unitPrice) || !isNum(discount)) return null;
+      const u = Number(unitPrice);
+      const d = Number(discount);
+      const sp = d < 10 ? u * d / 10 : u * d / 100;
+      return Math.round(sp * 100) / 100;
+    }
+
+    function App() {
+      const [qty, setQty] = useState("1");
+      const [name, setName] = useState("");
+      const [unitPrice, setUnitPrice] = useState("");
+      const [specialPrice, setSpecialPrice] = useState("");
+      const [discount, setDiscount] = useState("");
+      const [items, setItems] = useState([]);
+      const [err, setErr] = useState("");
+
+      const previewSpecial = useMemo(() => {
+        if (!specialPrice && isNum(unitPrice) && isNum(discount)) {
+          return computeSpecial(unitPrice, discount);
+        }
+        return null;
+      }, [unitPrice, discount, specialPrice]);
+
+      function clearForm() {
+        setQty("1"); setName(""); setUnitPrice(""); setSpecialPrice(""); setDiscount("");
+      }
+
+      function handleAdd(e) {
+        e.preventDefault();
+        setErr("");
+
+        if (!qty || !name) {
+          setErr("請填入 數量 與 品名 。");
+          return;
+        }
+        const hasUnit = isNum(unitPrice);
+        const hasSpecial = isNum(specialPrice);
+        if (!(hasUnit || hasSpecial)) {
+          setErr("請至少填入 單價 或 特價單價 其中之一（數字）。");
+          return;
+        }
+
+        if (discount !== "" && (!isNum(discount) || Number(discount) <= 0 || Number(discount) >= 100)) {
+          setErr("特價折數需為 0~100 之間的數字。");
+          return;
+        }
+
+        let finalUnit = hasUnit ? Number(unitPrice) : "";
+        let finalSpecial = hasSpecial ? Number(specialPrice) : null;
+        if (!hasSpecial && hasUnit && isNum(discount)) {
+          finalSpecial = computeSpecial(unitPrice, discount);
+        }
+
+        const chosenPrice = (finalSpecial !== null && finalSpecial !== undefined) ? Number(finalSpecial) : Number(finalUnit);
+        const subtotal = Math.round((Number(qty) * chosenPrice) * 100) / 100;
+
+        const newItem = {
+          id: crypto.randomUUID(),
+          qty: Number(qty),
+          name: name.trim(),
+          unitPrice: hasUnit ? Number(unitPrice) : "",  // 空字串代表原價留白
+          specialPrice: finalSpecial,                   // 可能是數字或 null
+          discount: isNum(discount) ? Number(discount) : "",
+          subtotal
+        };
+
+        setItems(prev => [newItem, ...prev]);
+        clearForm();
+      }
+
+      function handleDelete(id) {
+        setItems(prev => prev.filter(x => x.id !== id));
+      }
+
+      function exportCSV() {
+        if (items.length === 0) {
+          alert("目前沒有可匯出的資料。");
+          return;
+        }
+        const headers = ["數量","品名","單價","特價單價","折數","小計"];
+        const rows = items.map(it => ([
+          it.qty,
+          `"${it.name.replace(/"/g, '""')}"`,
+          it.unitPrice === "" ? "" : it.unitPrice,
+          (it.specialPrice === null || it.specialPrice === undefined) ? "" : it.specialPrice,
+          it.discount === "" ? "" : it.discount,
+          it.subtotal
+        ].join(",")));
+
+        const csv = [headers.join(","), ...rows].join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `items_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+
+
+        function copyInvoice() {
+          if (items.length === 0) {
+            alert("目前沒有資料可複製。");
+            return;
+          }
+
+          // 時間戳記：yyyyMMdd HH:mm
+          const now = new Date();
+          const pad = n => n.toString().padStart(2, '0');
+          const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+          const lines = [timestamp, "==============="];
+
+          items.forEach(it => {
+            const qty = it.qty;
+            const name = it.name;
+            const unit = toCurrency(it.unitPrice);
+            const special = isNum(it.specialPrice) ? `特價 ${toCurrency(it.specialPrice)}` : null;
+            const subtotal = toCurrency(it.subtotal);
+
+            let line = `${qty} x ${name} ${unit}`;
+            if (special) line += ` ${special}`;
+            line += ` = ${subtotal}`;
+            lines.push(line);
+          });
+
+          lines.push("===============");
+
+          const total = items.reduce((acc, it) => acc + Number(it.subtotal || 0), 0);
+          const saved = items.reduce((acc, it) => {
+            if (isNum(it.unitPrice) && isNum(it.specialPrice)) {
+              const diff = (Number(it.unitPrice) - Number(it.specialPrice)) * Number(it.qty);
+              return acc + (diff > 0 ? diff : 0);
+            }
+            return acc;
+          }, 0);
+
+          const totalStr = `TOTAL: ${toCurrency(total)} (${toCurrency(total*20)} TWD)`;
+          const savedStr = saved > 0 ? `  you saved: ${toCurrency(saved)} !!!!` : "";
+          if (saved > 0) {
+            lines.push(`you saved: ${toCurrency(saved)} !!!!`);
+          }
+          lines.push(totalStr);
+          
+
+          const text = lines.join("\n");
+          navigator.clipboard.writeText(text)
+            .then(() => alert("已複製到剪貼簿！"))
+            .catch(() => alert("複製失敗，可能是瀏覽器權限問題。"));
+        }
+
+      function copyInvoice_() {
+        if (items.length === 0) {
+          alert("目前沒有資料可複製。");
+          return;
+        }
+        const lines = [];
+        lines.push("=== 發票明細 ===");
+        items.slice().reverse().forEach((it, idx) => {
+          const up = it.unitPrice === "" ? "-" : toCurrency(it.unitPrice);
+          const sp = (it.specialPrice === null || it.specialPrice === undefined) ? "-" : toCurrency(it.specialPrice);
+          const d  = it.discount === "" ? "-" : it.discount;
+          lines.push(`${idx+1}. ${it.name}`);
+          lines.push(`   數量: ${it.qty}  單價: ${up}  特價: ${sp}  折數: ${d}  小計: ${toCurrency(it.subtotal)}`);
+        });
+        const total = items.reduce((acc, it) => acc + Number(it.subtotal || 0), 0);
+
+        // 計算省下金額（需同時有原價與特價才可比較）
+        const saved = items.reduce((acc, it) => {
+          if (it.specialPrice !== null && it.specialPrice !== undefined && it.unitPrice !== "") {
+            const diff = (Number(it.unitPrice) - Number(it.specialPrice)) * Number(it.qty);
+            return acc + (diff > 0 ? diff : 0);
+          }
+          return acc;
+        }, 0);
+
+        lines.push(`合計金額：${toCurrency(total)}`);
+        if (saved > 0) lines.push(`特價已省：${toCurrency(saved)}`);
+
+        const text = lines.join("\n");
+        navigator.clipboard.writeText(text)
+          .then(() => alert("已複製到剪貼簿！"))
+          .catch(() => alert("複製失敗，可能是瀏覽器權限問題。"));
+      }
+
+      // 計算總額與省下金額（顯示在最下方）
+      const totals = useMemo(() => {
+        const total = items.reduce((acc, it) => acc + Number(it.subtotal || 0), 0);
+        const saved = items.reduce((acc, it) => {
+          if (it.specialPrice !== null && it.specialPrice !== undefined && it.unitPrice !== "") {
+            const diff = (Number(it.unitPrice) - Number(it.specialPrice)) * Number(it.qty);
+            return acc + (diff > 0 ? diff : 0);
+          }
+          return acc;
+        }, 0);
+        const anySpecial = items.some(it => it.specialPrice !== null && it.specialPrice !== undefined);
+        return {
+          total: Math.round(total * 100) / 100,
+          saved: Math.round(saved * 100) / 100,
+          anySpecial
+        };
+      }, [items]);
+
+      const nonEmpty = items;
+
+      return (
+        <div>
+          <form onSubmit={handleAdd} noValidate>
+            <div className="row">
+              <label>
+                數量
+                <input type="number" inputMode="numeric" placeholder="例如：2"
+                  value={qty} onChange={e => setQty(e.target.value.replace(/[^\d.]/g,""))} style={{ width: "80px" }}/>
+              </label>
+              <label>
+                品名
+                <input placeholder="例如：香草優格"
+                  value={name} onChange={e => setName(e.target.value)} />
+              </label>
+            </div>
+
+            <div className="row3">
+              <label>
+                單價
+                <input type="number" inputMode="decimal" placeholder="例如：120"
+                  value={unitPrice} onChange={e => setUnitPrice(e.target.value.replace(/[^\d.]/g,""))} />
+                <div className="hint">和特價單價擇一必填</div>
+              </label>
+
+              <label>
+                特價單價
+                <input type="number" inputMode="decimal" placeholder="例如：99"
+                  value={specialPrice} onChange={e => setSpecialPrice(e.target.value.replace(/[^\d.]/g,""))} />
+                <div className="hint">
+                  賺爛了賺爛了
+                </div>
+              </label>
+
+              <label>
+                特價折數
+                <input type="number" inputMode="decimal" placeholder="例如：85 或 8.5"
+                  value={discount} onChange={e => setDiscount(e.target.value.replace(/[^\d.]/g,""))} />
+                <div className="hint">可輸入幾折或是 % off</div>
+              </label>
+            </div>
+
+            {previewSpecial !== null &&
+              <div className="hint">預估特價單價：{toCurrency(previewSpecial)}</div>
+            }
+
+            {err && <div className="error">{err}</div>}
+
+            <div className="btns">
+              <button type="submit" className="primary">加入清單</button>
+              <button type="button" className="secondary" onClick={clearForm}>清空表單</button>
+              <button type="button" className="ghost" onClick={exportCSV}>匯出 CSV</button>
+              <button type="button" className="ghost" onClick={copyInvoice}>複製發票格式</button>
+            </div>
+          </form>
+
+          <div className="list">
+            {nonEmpty.length === 0 && <div className="hint">目前沒有資料。</div>}
+            {nonEmpty.map(it => (
+              <div className="card" key={it.id}>
+                <div className="meta">
+                  <div><strong>{it.name}</strong></div>
+                  <div>數量：{it.qty}</div>
+                  {it.unitPrice !== "" && <div>單價：{toCurrency(it.unitPrice)}</div>}
+                  {(it.specialPrice !== null && it.specialPrice !== undefined) && <div>特價單價：{toCurrency(it.specialPrice)}</div>}
+                  {it.discount !== "" && <div>折數：{it.discount}</div>}
+                  <div><strong>小計：{toCurrency(it.subtotal)}</strong></div>
+                </div>
+                <button className="danger" onClick={() => handleDelete(it.id)}>刪除</button>
+              </div>
+            ))}
+          </div>
+
+          <div className="totals">
+            <div><strong>總額：{toCurrency(totals.total)}</strong></div>
+            {totals.anySpecial && totals.saved > 0 && (
+              <div className="saved">特價已省：{toCurrency(totals.saved)}</div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("app")).render(<App />);
+  </script>
+</body>
+</html>
