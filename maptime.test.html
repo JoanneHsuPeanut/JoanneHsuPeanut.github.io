@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>地點定位計時挑戰</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+      background: #0f172a;
+      color: #ffffff;
+      overflow: hidden;
+    }
+
+    .app {
+      position: relative;
+      width: 100vw;
+      height: 100dvh;
+      max-width: 480px;
+      margin: 0 auto;
+      background: #111827;
+      overflow: hidden;
+    }
+
+    .start-screen {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 22px;
+      padding: 24px;
+      background: radial-gradient(circle at top, #334155 0%, #0f172a 52%, #020617 100%);
+      text-align: center;
+    }
+
+    .start-screen h1 {
+      margin: 0;
+      font-size: 30px;
+      letter-spacing: 0.04em;
+    }
+
+    .start-screen p {
+      margin: 0;
+      max-width: 320px;
+      color: #cbd5e1;
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 800;
+    }
+
+    .primary-btn {
+      width: min(82vw, 300px);
+      padding: 17px 22px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #f59e0b, #ef4444);
+      color: white;
+      font-size: 18px;
+      box-shadow: 0 18px 34px rgba(239, 68, 68, 0.35);
+    }
+
+    .game {
+      position: absolute;
+      inset: 0;
+      display: none;
+      background: #1e293b;
+    }
+
+    .game.active {
+      display: block;
+    }
+
+    .map {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.18) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,0.18) 1px, transparent 1px),
+        radial-gradient(circle at 22% 20%, rgba(52,211,153,0.9) 0 13%, transparent 14%),
+        radial-gradient(circle at 72% 24%, rgba(52,211,153,0.82) 0 10%, transparent 11%),
+        radial-gradient(circle at 28% 76%, rgba(52,211,153,0.7) 0 16%, transparent 17%),
+        radial-gradient(circle at 82% 78%, rgba(52,211,153,0.7) 0 11%, transparent 12%),
+        linear-gradient(35deg, transparent 0 40%, rgba(96,165,250,0.9) 41% 48%, transparent 49%),
+        linear-gradient(120deg, transparent 0 54%, rgba(248,250,252,0.33) 55% 60%, transparent 61%),
+        linear-gradient(18deg, transparent 0 28%, rgba(248,250,252,0.25) 29% 33%, transparent 34%),
+        #64748b;
+      background-size:
+        48px 48px,
+        48px 48px,
+        auto,
+        auto,
+        auto,
+        auto,
+        auto,
+        auto,
+        auto,
+        auto;
+      touch-action: none;
+    }
+
+    .map::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        repeating-linear-gradient(28deg, transparent 0 62px, rgba(15,23,42,0.18) 63px 78px, transparent 79px 125px),
+        repeating-linear-gradient(105deg, transparent 0 80px, rgba(255,255,255,0.24) 81px 93px, transparent 94px 150px);
+      opacity: 0.95;
+      pointer-events: none;
+    }
+
+    .river-label,
+    .park-label,
+    .station-label,
+    .market-label {
+      position: absolute;
+      z-index: 2;
+      padding: 5px 9px;
+      border-radius: 999px;
+      color: #0f172a;
+      background: rgba(255, 255, 255, 0.74);
+      font-size: 12px;
+      font-weight: 800;
+      box-shadow: 0 3px 10px rgba(15,23,42,0.12);
+      pointer-events: none;
+    }
+
+    .river-label { left: 18px; top: 64%; }
+    .park-label { left: 18%; top: 18%; }
+    .station-label { right: 12%; top: 32%; }
+    .market-label { right: 14%; bottom: 18%; }
+
+    .top-card {
+      position: absolute;
+      top: max(14px, env(safe-area-inset-top));
+      left: 14px;
+      right: 14px;
+      z-index: 8;
+      padding: 14px 16px;
+      border-radius: 22px;
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.32);
+    }
+
+    .question {
+      margin: 0 0 8px 0;
+      font-size: 17px;
+      font-weight: 900;
+      line-height: 1.45;
+    }
+
+    .meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #e2e8f0;
+      font-size: 13px;
+    }
+
+    .timer {
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: rgba(248, 250, 252, 0.14);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .person-button {
+      position: absolute;
+      right: 18px;
+      bottom: calc(18px + env(safe-area-inset-bottom));
+      z-index: 10;
+      width: 76px;
+      height: 76px;
+      border-radius: 24px;
+      background: linear-gradient(145deg, #f8fafc, #cbd5e1);
+      box-shadow: 0 18px 36px rgba(15, 23, 42, 0.38);
+      display: grid;
+      place-items: center;
+      font-size: 40px;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .person-button span {
+      filter: drop-shadow(0 2px 1px rgba(15,23,42,0.2));
+    }
+
+    .dragging {
+      opacity: 0.88;
+      transform: scale(1.08);
+    }
+
+    .dropped-person {
+      position: absolute;
+      z-index: 7;
+      width: 42px;
+      height: 42px;
+      transform: translate(-50%, -100%);
+      display: grid;
+      place-items: center;
+      font-size: 38px;
+      filter: drop-shadow(0 8px 10px rgba(15,23,42,0.5));
+      pointer-events: none;
+    }
+
+    .target-dot {
+      position: absolute;
+      z-index: 5;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #ef4444;
+      box-shadow: 0 0 0 8px rgba(239,68,68,0.24), 0 0 26px rgba(239,68,68,0.9);
+      transform: translate(-50%, -50%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .target-dot.show {
+      opacity: 1;
+    }
+
+    .result-card {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: calc(16px + env(safe-area-inset-bottom));
+      z-index: 16;
+      display: none;
+      padding: 17px;
+      border-radius: 24px;
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 20px 42px rgba(15,23,42,0.5);
+    }
+
+    .result-card.show {
+      display: block;
+    }
+
+    .result-card h2 {
+      margin: 0 0 8px 0;
+      font-size: 22px;
+    }
+
+    .result-card p {
+      margin: 8px 0;
+      color: #dbeafe;
+      line-height: 1.55;
+      font-size: 15px;
+    }
+
+    .result-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .small-btn {
+      flex: 1;
+      padding: 13px 12px;
+      border-radius: 16px;
+      background: #f8fafc;
+      color: #0f172a;
+      font-size: 15px;
+    }
+
+    .hint {
+      position: absolute;
+      left: 16px;
+      right: 108px;
+      bottom: calc(24px + env(safe-area-inset-bottom));
+      z-index: 8;
+      margin: 0;
+      color: rgba(255,255,255,0.88);
+      font-size: 13px;
+      line-height: 1.55;
+      text-shadow: 0 2px 8px rgba(15,23,42,0.7);
+      pointer-events: none;
+    }
+
+    @media (min-width: 481px) {
+      body {
+        display: grid;
+        place-items: center;
+        background: #020617;
+      }
+
+      .app {
+        height: min(900px, 100vh);
+        border-radius: 34px;
+        box-shadow: 0 0 0 10px rgba(255,255,255,0.04), 0 30px 90px rgba(0,0,0,0.5);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="start-screen" id="startScreen">
+      <h1>地點定位挑戰</h1>
+      <p>按下開始後，請閱讀題目，從右下角拖曳小人到你認為的地點。放下小人後會停止計時並計算距離。</p>
+      <button class="primary-btn" id="startBtn">開始計時</button>
+    </section>
+
+    <section class="game" id="game">
+      <div class="map" id="map">
+        <span class="park-label">中央公園</span>
+        <span class="station-label">車站</span>
+        <span class="market-label">市場</span>
+        <span class="river-label">藍河</span>
+        <div class="target-dot" id="targetDot"></div>
+      </div>
+
+      <div class="top-card">
+        <p class="question" id="questionText">請把小人放到「中央公園」的位置</p>
+        <div class="meta">
+          <span>拖曳右下角小人作答</span>
+          <span class="timer" id="timer">0.00 秒</span>
+        </div>
+      </div>
+
+      <p class="hint" id="hint">提示：放開手指的瞬間，就會送出答案。</p>
+      <button class="person-button" id="personBtn" aria-label="拖曳小人到地圖上"><span>🧍</span></button>
+
+      <div class="result-card" id="resultCard">
+        <h2 id="resultTitle">完成！</h2>
+        <p id="resultDetail"></p>
+        <p id="resultFeedback"></p>
+        <div class="result-actions">
+          <button class="small-btn" id="retryBtn">再玩一次</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const startScreen = document.getElementById("startScreen");
+    const startBtn = document.getElementById("startBtn");
+    const game = document.getElementById("game");
+    const map = document.getElementById("map");
+    const personBtn = document.getElementById("personBtn");
+    const timerEl = document.getElementById("timer");
+    const targetDot = document.getElementById("targetDot");
+    const resultCard = document.getElementById("resultCard");
+    const resultTitle = document.getElementById("resultTitle");
+    const resultDetail = document.getElementById("resultDetail");
+    const resultFeedback = document.getElementById("resultFeedback");
+    const retryBtn = document.getElementById("retryBtn");
+    const hint = document.getElementById("hint");
+    const questionText = document.getElementById("questionText");
+
+    const questions = [
+      {
+        text: "請把小人放到「中央公園」的位置",
+        target: { x: 0.22, y: 0.20 },
+      },
+      {
+        text: "請把小人放到「車站」的位置",
+        target: { x: 0.76, y: 0.34 },
+      },
+      {
+        text: "請把小人放到「市場」的位置",
+        target: { x: 0.79, y: 0.79 },
+      },
+      {
+        text: "請把小人放到「藍河」旁邊的位置",
+        target: { x: 0.24, y: 0.64 },
+      },
+    ];
+
+    let currentQuestion = questions[0];
+    let startTime = 0;
+    let rafId = null;
+    let isDragging = false;
+    let hasSubmitted = false;
+    let activePointerId = null;
+
+    function pickQuestion() {
+      currentQuestion = questions[Math.floor(Math.random() * questions.length)];
+      questionText.textContent = currentQuestion.text;
+    }
+
+    function startTimer() {
+      startTime = performance.now();
+      updateTimer();
+    }
+
+    function updateTimer() {
+      const elapsed = (performance.now() - startTime) / 1000;
+      timerEl.textContent = `${elapsed.toFixed(2)} 秒`;
+      rafId = requestAnimationFrame(updateTimer);
+    }
+
+    function stopTimer() {
+      cancelAnimationFrame(rafId);
+      return (performance.now() - startTime) / 1000;
+    }
+
+    function resetPersonButton() {
+      personBtn.style.left = "";
+      personBtn.style.top = "";
+      personBtn.style.right = "18px";
+      personBtn.style.bottom = "calc(18px + env(safe-area-inset-bottom))";
+      personBtn.classList.remove("dragging");
+      personBtn.style.display = "grid";
+    }
+
+    function clearDroppedPeople() {
+      document.querySelectorAll(".dropped-person").forEach(el => el.remove());
+    }
+
+    function placeTargetDot() {
+      const rect = map.getBoundingClientRect();
+      targetDot.style.left = `${currentQuestion.target.x * rect.width}px`;
+      targetDot.style.top = `${currentQuestion.target.y * rect.height}px`;
+      targetDot.classList.remove("show");
+    }
+
+    function beginGame() {
+      hasSubmitted = false;
+      pickQuestion();
+      startScreen.style.display = "none";
+      game.classList.add("active");
+      resultCard.classList.remove("show");
+      hint.style.display = "block";
+      resetPersonButton();
+      clearDroppedPeople();
+      setTimeout(placeTargetDot, 40);
+      startTimer();
+    }
+
+    function movePersonTo(clientX, clientY) {
+      const appRect = document.querySelector(".app").getBoundingClientRect();
+      const size = personBtn.offsetWidth;
+      const left = clientX - appRect.left - size / 2;
+      const top = clientY - appRect.top - size / 2;
+      personBtn.style.right = "auto";
+      personBtn.style.bottom = "auto";
+      personBtn.style.left = `${left}px`;
+      personBtn.style.top = `${top}px`;
+    }
+
+    function dropPerson(clientX, clientY) {
+      if (hasSubmitted) return;
+
+      const mapRect = map.getBoundingClientRect();
+      const dropX = Math.min(Math.max(clientX - mapRect.left, 0), mapRect.width);
+      const dropY = Math.min(Math.max(clientY - mapRect.top, 0), mapRect.height);
+
+      hasSubmitted = true;
+      const elapsed = stopTimer();
+      personBtn.style.display = "none";
+      hint.style.display = "none";
+
+      const dropped = document.createElement("div");
+      dropped.className = "dropped-person";
+      dropped.textContent = "🧍";
+      dropped.style.left = `${dropX}px`;
+      dropped.style.top = `${dropY}px`;
+      map.appendChild(dropped);
+
+      const targetX = currentQuestion.target.x * mapRect.width;
+      const targetY = currentQuestion.target.y * mapRect.height;
+      const pixelDistance = Math.hypot(dropX - targetX, dropY - targetY);
+      const maxDistance = Math.hypot(mapRect.width, mapRect.height);
+      const accuracy = Math.max(0, Math.round((1 - pixelDistance / maxDistance) * 100));
+
+      targetDot.style.left = `${targetX}px`;
+      targetDot.style.top = `${targetY}px`;
+      targetDot.classList.add("show");
+
+      let feedback = "距離還有點遠，可以觀察地圖上的文字標示與道路位置。";
+      let title = "完成！";
+
+      if (pixelDistance < 35) {
+        title = "太準了！";
+        feedback = "你幾乎放在正確位置，定位感非常好。";
+      } else if (pixelDistance < 85) {
+        title = "很接近！";
+        feedback = "你已經抓到大致方位，再微調一點會更準。";
+      } else if (pixelDistance < 150) {
+        title = "還不錯！";
+        feedback = "方向大致正確，但距離目標還有一段。";
+      }
+
+      resultTitle.textContent = title;
+      resultDetail.innerHTML = `用時：<strong>${elapsed.toFixed(2)} 秒</strong><br>距離目標：約 <strong>${Math.round(pixelDistance)} px</strong><br>接近程度：<strong>${accuracy}%</strong>`;
+      resultFeedback.textContent = feedback;
+      resultCard.classList.add("show");
+    }
+
+    startBtn.addEventListener("click", beginGame);
+    retryBtn.addEventListener("click", beginGame);
+    window.addEventListener("resize", () => {
+      if (game.classList.contains("active")) placeTargetDot();
+    });
+
+    personBtn.addEventListener("pointerdown", (event) => {
+      if (hasSubmitted) return;
+      isDragging = true;
+      activePointerId = event.pointerId;
+      personBtn.setPointerCapture(activePointerId);
+      personBtn.classList.add("dragging");
+      movePersonTo(event.clientX, event.clientY);
+    });
+
+    personBtn.addEventListener("pointermove", (event) => {
+      if (!isDragging || event.pointerId !== activePointerId || hasSubmitted) return;
+      movePersonTo(event.clientX, event.clientY);
+    });
+
+    personBtn.addEventListener("pointerup", (event) => {
+      if (!isDragging || event.pointerId !== activePointerId || hasSubmitted) return;
+      isDragging = false;
+      personBtn.classList.remove("dragging");
+      dropPerson(event.clientX, event.clientY);
+    });
+
+    personBtn.addEventListener("pointercancel", () => {
+      isDragging = false;
+      activePointerId = null;
+      if (!hasSubmitted) resetPersonButton();
+    });
+  </script>
+</body>
+</html>
