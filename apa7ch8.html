@@ -1977,6 +1977,9 @@
     @media (max-width: 900px) { html { font-size: 14.5px; } body { font-size: 15px; } }
     /* 預設縮小到 90%（等同瀏覽器縮放 90%）；想改大小就改這個數字，1 = 100% */
     html { zoom: 0.9; }
+    /* §8.19 篇數和勾選框同一列、垂直置中 */
+    .d19row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+    .d19row .switch { margin-top: 0; }
   </style>
 
   <div class="app" id="app">
@@ -2607,10 +2610,10 @@
           <div class="cols">
             <div class="panel">
               <p class="lbl">動手看看：同一組作者這一年有幾篇？</p>
-              <div class="stepper"><button class="ib" type="button" id="d19-minus" aria-label="少一篇">−</button><output
+              <div class="d19row"><div class="stepper"><button class="ib" type="button" id="d19-minus" aria-label="少一篇">−</button><output
                   id="d19-k">2 篇</output><button class="ib" type="button" id="d19-plus" aria-label="多一篇">＋</button>
               </div>
-              <label class="switch"><input type="checkbox" id="d19-t"> 這些作品都沒有日期</label>
+              <label class="switch"><input type="checkbox" id="d19-t"> 這些作品都沒有日期</label></div>
               <div class="out" aria-live="polite">
                 <div class="big" id="d19-o"></div>
                 <div class="note" id="d19-n"></div>
@@ -4051,7 +4054,7 @@
       function d19() {
         const nd = $("#d19-t").checked, L = "abcd".slice(0, k19).split("");
         $("#d19-k").textContent = k19 + " 篇";
-        const who = nd ? "Sifuentes" : "Judge &amp; Kammeyer-Mueller", base = nd ? "n.d." : "2012";
+        const who = "Judge &amp; Kammeyer-Mueller", base = nd ? "n.d." : "2012";
         $("#d19-o").innerHTML = k19 === 1 ? "(" + A(who) + ", " + Y(base) + ")" : "(" + A(who) + ", " + L.map((l) => Y(base + (nd ? "-" : "") + l)).join(", ") + ")";
         $("#d19-n").textContent = k19 === 1 ? "只有一篇，不用加字母。" : nd ? "沒有日期時寫 n.d.-a、n.d.-b，中間加連字號。參考文獻也用相同的字母。" : "年份後加 a、b、c……，參考文獻也用相同的字母；文內只寫年份加字母。";
         $("#d19-minus").disabled = k19 <= 1; $("#d19-plus").disabled = k19 >= 4;
